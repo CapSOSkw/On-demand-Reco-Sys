@@ -27,7 +27,7 @@ import pymysql
 #Ignore warnings
 warnings.filterwarnings('ignore')
 
-#connect to mysql, database is mytest, table is merge_8910
+#connect to mysql
 db = pymysql.connect("localhost", "root", "0702","mytest")
 cnx = create_engine('mysql+pymysql://root:0702@localhost/mytest',echo=False)
 cursor = db.cursor()
@@ -142,98 +142,17 @@ class PreProcess():
         return self.df
 
     def process(self,file):
-        self.df = pd.read_csv(file, sep=',')
-        self.df = self.df.dropna(how='any')
-
-        try:
-            self.df['phone1'] = self.df['phone1'].apply(lambda x:x.replace("-",""))
-        except:
-            pass
-
-        try:
-            self.df['driver1'] = self.df['driver1'].apply(lambda x:x.replace(";"," ").split(" "))
-        except:
-            pass
-
-        try:
-            self.df['driver_LN'] = self.df['driver1'].apply(lambda x:x[0])
-        except:
-            pass
-
-        try:
-            self.df['driver_FN'] = self.df['driver1'].apply(lambda x:"".join(x[1:]))
-        except:
-            pass
-
-        try:
-            self.df['date_day'] = self.df['date'].apply(lambda x: datetime.strptime(x, '%m/%d/%y').day)
-        except:
-            pass
-
-        ######  factorize info  #####
-        self.df['company_id'] = pd.factorize(self.df.company)[0]
-        # self.df['confirm_id'] = pd.factorize(self.df['confirm(S/CC)'])[0]
-        self.df['date_id'] = pd.factorize(self.df.date)[0]
-        self.df['date_day_id'] = pd.factorize(self.df['date_day'])[0]
-        self.df['day_week_id'] = pd.factorize(self.df.day_of_week)[0]
-        # self.df['dropoff_add_id'] = pd.factorize(self.df.dropoff_add)[0]
-        self.df['dropoff_city_id'] = pd.factorize(self.df.dropoff_city)[0]
-        self.df['fleet_id'] = pd.factorize(self.df.fleet)[0]
-        # self.df['pickup_location_id'] = pd.factorize(self.df.pickup_location)[0]
-        self.df['pickup_city_id'] = pd.factorize(self.df.pickup_city)[0]
-        self.df['status_id'] = pd.factorize(self.df.status)[0]
-        self.df['time_id'] = pd.factorize(self.df.time)[0]
-        # self.df['roundtrip_loc_id'] = pd.factorize(self.df.pickup_location + self.df.dropoff_add)[0]
-        self.df['roundtrip_city_id'] = pd.factorize(self.df.pickup_city + self.df.dropoff_city)[0]
-        self.df['cust_fullname'] = self.df['cust_FN'] + " " + self.df['cust_LN']
-        self.df['customer_id'] = pd.factorize(self.df.cust_fullname)[0]
-        self.df['latlng_pickup_temp'] = self.df['latlng_pickup_location'].apply(lambda x: x.replace("[","").replace("]","").split(","))
-        self.df['latlng_pickup_temp'].apply(lambda x: pickup_data.append([float(x[0]), float(x[1])]))
-
-        self.df['latlng_dropoff_temp'] = self.df['latlng_dropoff_add'].apply(lambda x: x.replace("[","").replace("]","").split(","))
-        self.df['latlng_dropoff_temp'].apply(lambda x: dropoff_data.append([float(x[0]), float(x[1])]))
-        self.df['latlng_pickup_cleaned'] = pickup_data
-        self.df['latlng_dropoff_cleaned'] = dropoff_data
-
-        kmeans_pickup = KMeans(n_clusters=30, init='random', precompute_distances=True, random_state=42,
-                               algorithm='auto').fit(pickup_data)
-        kmeans_dropoff = KMeans(n_clusters=30, init='random', precompute_distances=True, random_state=42,
-                                algorithm='auto').fit(dropoff_data)
-
-        # kmeans_pickup_file = 'kmeans_pickup_model.sav'
-        # kmeans_dropoff_file = 'kmeans_dropoff_model.sav'
-        # joblib.dump(kmeans_pickup, kmeans_pickup_file)
-        # joblib.dump(kmeans_dropoff, kmeans_dropoff_file)
-
-        self.df['pickup_location_id'] = self.df['latlng_pickup_cleaned'].apply(lambda x: int(kmeans_pickup.predict(np.array([x]))))
-        self.df['dropoff_add_id'] = self.df['latlng_dropoff_cleaned'].apply(lambda x: int(kmeans_dropoff.predict(np.array([x]))))
-
-
-        self.df['roundtrip_loc_id'] = pd.factorize(self.df.pickup_location_id + self.df.dropoff_add_id)[0]
-
-        return self.df
+         pass
 
     def get_features(self):
-        # self.X = self.df[['company_id', 'customer_id', 'date_day_id','day_week_id',
-        #                     'time_id','roundtrip_loc_id', 'roundtrip_city_id']]
         SQL = """select company_id, customer_id, date_day_id,day_week_id,time_id,roundtrip_city_id,roundtrip_loc_id from oneyear"""
         self.X = pd.read_sql(SQL, cnx)
         return self.X
 
     def get_targets(self):
-        # self.Y = self.df['fleet1_id']
         SQL = """select fleet_id from oneyear"""
         self.Y = pd.read_sql(SQL,cnx)
         return self.Y
-
-
-
-# Load data from csv file
-# proc = PreProcess()
-# # csv_data = proc.process('merged_8910_upper_latlng_11_8.csv')
-# csv_data = proc.load('Merged_8910_cleaned.csv')
-# X = proc.get_features()
-# Y = proc.get_targets()
 
 # Load data from mysql databse
 proc = PreProcess()
@@ -244,13 +163,10 @@ Y = proc.get_targets()
 kmeans_pickup = joblib.load('kmeans_pickup_model_oneyear.sav')
 kmeans_dropoff = joblib.load('kmeans_dropoff_model_oneyear.sav')
 
-# kmeans_pickup = KMeans(n_clusters=30, init='k-means++', precompute_distances=True,random_state=42, algorithm='auto').fit(pickup_data)
-# kmeans_dropoff = KMeans(n_clusters=30, init='k-means++', precompute_distances=True,random_state=42, algorithm='auto').fit(dropoff_data)
 
-#########       split data into 9:1       ###############
-# X_train, X_test, Y_train, Y_test = train_test_split(X,Y,test_size=0.1, random_state=40)
 
 #initialize PCA
+
 # pca = PCA(n_components=2, svd_solver='auto',tol=1.0,iterated_power=10,whiten=True,random_state=40).fit(X_train)
 # pca_model_file = 'pca_model_oneyear.sav'
 # joblib.dump(pca,pca_model_file)
@@ -258,6 +174,7 @@ kmeans_dropoff = joblib.load('kmeans_dropoff_model_oneyear.sav')
 pca = joblib.load('pca_model_oneyear.sav')
 
 #transfer the original data to pca form
+
 # X_train_pca = pca.transform(X_train)
 # X_test_pca = pca.transform(X_test)
 
@@ -269,83 +186,63 @@ pca = joblib.load('pca_model_oneyear.sav')
 knn_clf = joblib.load('knn_model_oneyear.sav')
 # print(knn_clf.score(X_test_pca,Y_test)*100)
 
-
 class trans_rawdata_to_id():
     def __init__(self):
         pass
 
     def get_company_id(self,company):
         try:
-            # self.company_id = csv_data.loc[csv_data['company']==company, 'company_id'].iloc[0]
             cursor.execute("select DISTINCT company_id from oneyear WHERE company=%s",company)
             self.company_id = cursor.fetchone()[0]
         except:
-            # self.company_id = csv_data['company_id'].value_counts().idxmax()
             self.company_id = -1
         return self.company_id
 
     def get_customer_id(self,cust_fullname):
         try:
-            # self.customer_id = csv_data.loc[csv_data['cust_fullname']==cust_fullname, 'customer_id'].iloc[0]
-            SQL = "select DISTINCT customer_id from oneyear WHERE cust_fullname="+"'"+cust_fullname+"'"
+            SQL = "select DISTINCT customer_id from oneyear WHERE cust_fullname=" + "'" + cust_fullname + "'"
             cursor.execute(SQL)
             self.customer_id = cursor.fetchone()[0]
         except:
-            # self.customer_id = csv_data['customer_id'].value_counts().idxmax()
             self.customer_id = -1
         return self.customer_id
 
     def get_date_id(self,date):
         try:
-            # self.date_id = csv_data.loc[csv_data['date']==date, 'date_id'].iloc[0]
-            SQL = "select DISTINCT date_id from oneyear WHERE date="+"'"+date+"'"
+            SQL = "select DISTINCT date_id from oneyear WHERE date=" + "'" + date + "'"
             cursor.execute(SQL)
             self.date_id = cursor.fetchone()[0]
         except:
-            # self.date_id = csv_data['date_id'].value_counts().idxmax()
             self.date_id = -1
         return self.date_id
 
     def get_day_week_id(self,day_week):
         try:
-            # self.day_week_id = csv_data.loc[csv_data['day_of_week']==day_week, 'day_week_id'].iloc[0]
-            SQL = "select DISTINCT day_week_id from oneyear WHERE day_of_week="+str(day_week)
+            SQL = "select DISTINCT day_week_id from oneyear WHERE day_of_week=" + str(day_week)
             cursor.execute(SQL)
             self.day_week_id = cursor.fetchone()[0]
-
         except:
-            # self.day_week_id = csv_data['day_week_id'].value_counts().idxmax()
             self.day_week_id = -1
         return self.day_week_id
 
     def get_time_id(self,time):
         try:
-            # self.time_id = csv_data.loc[csv_data['time']==time, 'time_id'].iloc[0]
-            SQL = "select DISTINCT time_id from oneyear WHERE time="+"'"+time+"'"
+            SQL = "select DISTINCT time_id from oneyear WHERE time=" + "'" + time + "'"
             cursor.execute(SQL)
             self.time_id = cursor.fetchone()[0]
-
         except:
-            # self.time_id = csv_data['time_id'].value_counts().idxmax()
             self.time_id = -1
         return self.time_id
 
     def get_pickup_loc_id(self, pickup_loc):
         try:
-
-            # self.pickup_geo = get_geolocation(pickup_loc)
-            # self.pickup_geo_kmeans_id = int(kmeans_pickup.predict(np.array([self.pickup_geo])))
             self.pickup_geo_kmeans_id = int(kmeans_pickup.predict([pickup_loc]))
         except:
             self.pickup_geo_kmeans_id = -1
-
         return self.pickup_geo_kmeans_id
 
     def get_dropoff_loc_id(self,dropoff_loc):
         try:
-
-            # self.dropoff_geo = get_geolocation(dropoff_loc)
-            # self.dropoff_geo_kmeans_id = int(kmeans_dropoff.predict(np.array([self.dropoff_geo])))
             self.dropoff_geo_kmeans_id = int(kmeans_dropoff.predict([dropoff_loc]))
         except:
             self.dropoff_geo_kmeans_id = -1
@@ -354,40 +251,24 @@ class trans_rawdata_to_id():
 
     def get_roundtrip_loc_id(self,pickup_loc,dropoff_loc):
         try:
-            # self.roundtrip_loc_id = csv_data.loc[(csv_data['pickup_location']==pickup_loc)&(csv_data['dropoff_add']==dropoff_loc),
-            # 'roundtrip_loc_id'].iloc[0]
-            #####################################################################################################################
-            # self.pickup_geo = get_geolocation(pickup_loc)
-            # self.dropoff_geo = get_geolocation(dropoff_loc)
-            # self.pickup_geo_kmeans_id = int(kmeans_pickup.predict(np.array([self.pickup_geo])))
-            # self.dropoff_geo_kmeans_id = int(kmeans_dropoff.predict(np.array([self.dropoff_geo])))
-            #####################################################################################################################
-            # self.roundtrip_loc_id = csv_data.loc[(csv_data['pickup_location_id']==self.get_pickup_loc_id(pickup_loc))&(csv_data['dropoff_add_id']==self.get_dropoff_loc_id(dropoff_loc)),
-            # 'roundtrip_loc_id'].iloc[0]
-
             SQL = "select DISTINCT roundtrip_loc_id from oneyear WHERE pickup_location_id="+str(self.get_pickup_loc_id(pickup_loc))+" and dropoff_add_id="+str(self.get_dropoff_loc_id(dropoff_loc))
             cursor.execute(SQL)
             self.roundtrip_loc_id = cursor.fetchone()[0]
         except:
-            # self.roundtrip_loc_id = csv_data['roundtrip_loc_id'].value_counts().idxmax()
             self.roundtrip_loc_id = -1
         return self.roundtrip_loc_id
 
     def get_roundtrip_city_id(self,pickup_city, dropoff_city):
         try:
-            # self.roundtrip_city_id = csv_data.loc[(csv_data['pickup_city']==pickup_city)&(csv_data['dropoff_city']==dropoff_city),
-            # 'roundtrip_city_id'].iloc[0]
             SQL = "select DISTINCT roundtrip_city_id from oneyear WHERE pickup_city="+"'"+pickup_city+"'"+" and dropoff_city="+"'"+dropoff_city+"'"
             cursor.execute(SQL)
             self.roundtrip_city_id = cursor.fetchone()[0]
         except:
-            # self.roundtrip_city_id = csv_data['roundtrip_city_id'].value_counts().idxmax()
             self.roundtrip_city_id = -1
         return self.roundtrip_city_id
 
     def to_id(self):
         self.id_data = [[self.company_id,self.customer_id,self.date_id,self.day_week_id,self.time_id,self.roundtrip_loc_id,self.roundtrip_city_id]]
-
         return self.id_data
 
 
@@ -403,19 +284,7 @@ class Classifier():
         result = []
 
         self.the_rest = knn_clf.kneighbors(pca,n_neighbors=n,return_distance=False)
-
-
-        # for i in self.the_rest[0]:
-            # SQL1 = "select DISTINCT fleet,fleet_id from oneyear WHERE unique_id="+str(i)
-            # cursor.execute(SQL1)
-            # temp = cursor.fetchone()
-            # temp_fleet , temp_fleet_id= temp[0], temp[1]
-            # if temp_fleet in active_driver_dict:
-            #     result.append(temp_fleet_id)
-            # else:
-            #     continue
-            ###########################################################################
-        cursor.execute("select distinct fleet_id from oneyear where unique_id in "+str(tuple(self.the_rest[0])))
+        cursor.execute("select distinct fleet_id from oneyear where unique_id in " + str(tuple(self.the_rest[0])))
         temp = cursor.fetchall()
         cache = list(map(lambda x:result.append(x[0]), temp))
 
@@ -426,28 +295,24 @@ class Classifier():
         return result
 
     def get_driver_FN(self,id):
-        # self.driver_FN = csv_data.loc[csv_data['fleet1_id']==id, 'driver_FN'].iloc[0]
         SQL = "select driver_FN from oneyear WHERE fleet_id="+str(id)
         cursor.execute(SQL)
         self.driver_FN = cursor.fetchone()[0]
         return self.driver_FN
 
     def get_driver_LN(self,id):
-        # self.driver_LN = csv_data.loc[csv_data['fleet1_id']==id, 'driver_LN'].iloc[0]
         SQL = "select driver_LN from oneyear WHERE fleet_id="+str(id)
         cursor.execute(SQL)
         self.driver_LN = cursor.fetchone()[0]
         return self.driver_LN
 
     def get_driver_phone(self,id):
-        # self.driver_phone = csv_data.loc[csv_data['fleet1_id']==id, 'phone1'].iloc[0]
         SQL = "select driver_phone from oneyear WHERE fleet_id=" + str(id)
         cursor.execute(SQL)
         self.driver_phone = cursor.fetchone()[0]
         return self.driver_phone
 
     def get_driver_fleet(self,id):
-        # self.driver_fleet = csv_data.loc[csv_data['fleet1_id']==id, 'fleet1'].iloc[0]
         SQL = "select fleet from oneyear WHERE fleet_id=" + str(id)
         cursor.execute(SQL)
         self.driver_fleet = cursor.fetchone()[0]
@@ -456,12 +321,6 @@ class Classifier():
     def get_textdata(self,id):
         SQL = "select DISTINCT driver_FN, driver_LN, driver_phone,fleet from oneyear where fleet_id IN"+str(id)
         cursor.execute(SQL)
-        # temp = cursor.fetchone()
-        # self.driver_FN = temp[0]
-        # self.driver_LN = temp[1]
-        # self.driver_phone = temp[2]
-        # self.driver_fleet = temp[3]
-        ###############################
         temp = cursor.fetchall()
 
         self.driver_FN = list(map(lambda x:x[0], set(temp)))
@@ -522,16 +381,10 @@ class my_api(Resource):
                    'pickup city': args['pickupCity'].upper(),'dropoff location': args['dropOffAddress'].upper(),
                    'dropoff city':args['dropOffCity'].upper(),'pickup point':args['pickupPoint'], 'dropoff point':args['dropOffPoint']}
 
-        #Record computation time
-
-
-
         ######## Transfer post data into pandas id format
         company_id = trans.get_company_id(my_dict['user info']['company'])
         cust_fullname = my_dict['user info']['cust_FN']+" "+my_dict['user info']['cust_LN']
         cust_fullname_id = trans.get_customer_id(cust_fullname)
-        # print(cust_fullname_id)
-        # date_id = trans.get_date_id(my_dict['user info']['date'])
         cache_time = my_dict['user info']['date']
         try:
             cache_time = datetime.strptime(cache_time, '%m/%d/%y')
@@ -584,16 +437,6 @@ class my_api(Resource):
         # print(tuple_the_rest)
         result_the_rest = classifier.get_textdata(tuple_the_rest)
 
-        # print(result_the_rest[3])
-        ##########################################################
-        # for i in the_rest[0:9]:
-        #     temp_textdata = classifier.get_textdata(i)
-        #     temp.append({'firstName': temp_textdata[0], 'lastName': temp_textdata[1],
-        #                  'phone':temp_textdata[2], 'fleetNum':temp_textdata[3], 'priority':str(j)})
-        #     j+=1
-        #########################################################
-
-
         def get_trip_number_dict(id, cust_id):
             dict_temp = {key: 0 for key in result_the_rest[3]}
             SQL = "select fleet,count(fleet) as fleet_count from oneyear WHERE fleet_id IN " + str(id) + " and customer_id=" + str(cust_id) + " GROUP BY fleet order by fleet_count desc"
@@ -610,7 +453,6 @@ class my_api(Resource):
 
 
         for i in range(9):
-            # print(list(tuple_the_rest)[i])
             temp.append({'firstName': result_the_rest[0][i], 'lastName':result_the_rest[1][i] ,
                          'phone':result_the_rest[2][i], 'fleetNum':result_the_rest[3][i], 'priority':str(j),
                          'NumberOfTrips':dict_temp[result_the_rest[3][i]]})
@@ -624,6 +466,6 @@ class my_api(Resource):
 
 api.add_resource(my_api, '/')
 
-#####enterence of the program
+##### enterance of the program
 if __name__=='__main__':
-    app.run(debug=False,host='192.168.10.200', port='8888')
+    app.run(debug=False,host='127.0.0.1', port='8888')
